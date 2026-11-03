@@ -66,7 +66,7 @@
           <div>
             <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
               Retail Sales Analytics Dashboard
-              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30">Live Web App</span>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Live on Render</span>
             </h1>
             <p class="text-xs sm:text-sm text-slate-400 mt-0.5">
               Industrial Training Project | <span class="text-slate-200 font-medium">Mahesh A (RCAS2024BDS015)</span> | Rathinam Global University &bull; Prefenzo Technologies
@@ -84,7 +84,7 @@
         </label>
         <button id="btnReloadSample" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-xs sm:text-sm font-semibold text-white transition-all shadow-md shadow-blue-500/25">
           <i class="fa-solid fa-arrows-rotate"></i>
-          <span>Reload Core Dataset</span>
+          <span>Reload Server Dataset</span>
         </button>
       </div>
     </div>
@@ -209,7 +209,7 @@
           <div class="flex items-center justify-between mb-4">
             <div>
               <h3 class="text-sm font-bold text-white tracking-wide uppercase">Profitability by Product Category</h3>
-              <p class="text-xs text-slate-400">Operating margins across electronics, office items & furniture</p>
+              <p class="text-xs text-slate-400">Operating margins across product segments</p>
             </div>
             <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">Operating Net</span>
           </div>
@@ -398,19 +398,36 @@
 
   <!-- CORE LOGIC SCRIPT -->
   <script>
-    // State storage
     let masterData = [];
     let currentFiltered = [];
     let currentPage = 1;
     const pageSize = 20;
 
-    // Chart instances
     let chartRegionInstance = null;
     let chartCategoryInstance = null;
     let chartSegmentInstance = null;
     let chartMonthlyInstance = null;
 
-    // Built-in synthetic dataset generator (1,200 transactions)
+    // Fetch initial dataset from Flask backend API, fallback to synthetic if offline
+    async function loadInitialData() {
+      try {
+        const res = await fetch('/api/raw_data');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) {
+            masterData = data;
+            populateDropdowns();
+            applyFilters();
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Backend API not reachable, loading bundled dataset");
+      }
+      initData();
+    }
+
+    // Built-in synthetic dataset generator fallback
     function generateSyntheticDataset() {
       const records = [];
       const regions = [
@@ -421,20 +438,17 @@
       ];
       
       const segments = ['Consumer', 'Corporate', 'Home Office'];
-      
       const catalog = [
         { cat: 'Electronics', name: 'Dell XPS 15 Laptop', price: 115000, marginBase: 0.16 },
         { cat: 'Electronics', name: 'Sony WH-1000XM5 Headphones', price: 28990, marginBase: 0.22 },
         { cat: 'Electronics', name: 'LG 27-inch 4K UHD Monitor', price: 34500, marginBase: 0.18 },
         { cat: 'Electronics', name: 'Logitech MX Master 3S Mouse', price: 8995, marginBase: 0.28 },
         { cat: 'Electronics', name: 'Apple iPad Air M2', price: 59900, marginBase: 0.14 },
-        
         { cat: 'Office Supplies', name: 'HP LaserJet Pro MFP', price: 23500, marginBase: 0.24 },
         { cat: 'Office Supplies', name: 'Ergonomic Desk Organizers', price: 1850, marginBase: 0.35 },
         { cat: 'Office Supplies', name: 'JK Copier Paper A4 Box', price: 1450, marginBase: 0.26 },
         { cat: 'Office Supplies', name: 'Heavy-Duty Paper Shredder', price: 7800, marginBase: 0.29 },
         { cat: 'Office Supplies', name: 'Executive Gel Pens Pack', price: 650, marginBase: 0.42 },
-
         { cat: 'Furniture', name: 'Green Soul Ergonomic Chair', price: 16500, marginBase: 0.15 },
         { cat: 'Furniture', name: 'Motorized Standing Desk', price: 32000, marginBase: 0.12 },
         { cat: 'Furniture', name: 'Modular Wooden Bookcase', price: 12500, marginBase: 0.10 },
@@ -449,7 +463,7 @@
       ];
 
       const startDate = new Date(2026, 0, 1);
-      const endDate = new Date(2026, 9, 31); // Jan 2026 to Oct 2026
+      const endDate = new Date(2026, 9, 31);
 
       for (let i = 1; i <= 1200; i++) {
         const regObj = regions[Math.floor(Math.random() * regions.length)];
@@ -458,17 +472,13 @@
         const segment = segments[Math.floor(Math.random() * segments.length)];
         const customer = customers[Math.floor(Math.random() * customers.length)];
         
-        // Random date
         const date = new Date(startDate.getTime() + Math.random() * (endDate.getTime() - startDate.getTime()));
         const orderDateStr = date.toISOString().split('T')[0];
         
         const qty = Math.floor(Math.random() * 5) + 1;
         const discountRate = [0, 0.05, 0.1, 0.15, 0.2, 0.25][Math.floor(Math.random() * 6)];
-        
         const gross = product.price * qty;
         const sales = gross * (1 - discountRate);
-        
-        // Cost of goods sold
         const baseCost = gross * (1 - product.marginBase);
         const profit = sales - baseCost;
 
@@ -492,14 +502,12 @@
       return records;
     }
 
-    // Initialize data
     function initData() {
       masterData = generateSyntheticDataset();
       populateDropdowns();
       applyFilters();
     }
 
-    // Populate Region & Category Filter Selects
     function populateDropdowns() {
       const regions = ['ALL', ...new Set(masterData.map(d => d.Region).filter(Boolean))];
       const categories = ['ALL', ...new Set(masterData.map(d => d.Category).filter(Boolean))];
@@ -511,19 +519,18 @@
       catSelect.innerHTML = categories.map(c => `<option value="${c}">${c === 'ALL' ? 'All Categories' : c}</option>`).join('');
     }
 
-    // Filter Logic
     function applyFilters() {
       const selectedReg = document.getElementById('filterRegion').value;
       const selectedCat = document.getElementById('filterCategory').value;
       const query = document.getElementById('searchInput').value.trim().toLowerCase();
 
       currentFiltered = masterData.filter(item => {
-        const matchReg = (selectedReg === 'ALL') || (item.Region === selectedReg);
-        const matchCat = (selectedCat === 'ALL') || (item.Category === selectedCat);
+        const matchReg = (selectedReg === 'ALL') || (String(item.Region) === selectedReg);
+        const matchCat = (selectedCat === 'ALL') || (String(item.Category) === selectedCat);
         
         let matchQuery = true;
         if (query) {
-          const str = `${item.Order_ID} ${item.Customer_Name} ${item.City} ${item.Product_Name} ${item.Category}`.toLowerCase();
+          const str = `${item.Order_ID || ''} ${item.Customer_Name || ''} ${item.City || ''} ${item.Product_Name || ''} ${item.Category || ''}`.toLowerCase();
           matchQuery = str.includes(query);
         }
         return matchReg && matchCat && matchQuery;
@@ -535,7 +542,6 @@
       renderTable();
     }
 
-    // Format Currency in INR (₹)
     function formatINR(val) {
       return new Intl.NumberFormat('en-IN', {
         style: 'currency',
@@ -544,12 +550,11 @@
       }).format(val);
     }
 
-    // Update KPI Card Numbers
     function updateKPICards() {
-      const totalSales = currentFiltered.reduce((sum, r) => sum + (r.Sales || 0), 0);
-      const totalProfit = currentFiltered.reduce((sum, r) => sum + (r.Profit || 0), 0);
+      const totalSales = currentFiltered.reduce((sum, r) => sum + (parseFloat(r.Sales) || 0), 0);
+      const totalProfit = currentFiltered.reduce((sum, r) => sum + (parseFloat(r.Profit) || 0), 0);
       const margin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0;
-      const totalUnits = currentFiltered.reduce((sum, r) => sum + (r.Quantity || 0), 0);
+      const totalUnits = currentFiltered.reduce((sum, r) => sum + (parseInt(r.Quantity) || 0), 0);
       const totalOrders = currentFiltered.length;
 
       document.getElementById('kpiSales').innerText = formatINR(totalSales);
@@ -568,15 +573,15 @@
       document.getElementById('tableRecordCount').innerText = totalOrders.toLocaleString('en-IN');
     }
 
-    // Charts Rendering using Chart.js
     function updateCharts() {
       // 1. Regional Sales
       const regionMap = {};
       currentFiltered.forEach(r => {
-        regionMap[r.Region] = (regionMap[r.Region] || 0) + (r.Sales || 0);
+        const reg = r.Region || 'Other';
+        regionMap[reg] = (regionMap[reg] || 0) + (parseFloat(r.Sales) || 0);
       });
       const regLabels = Object.keys(regionMap);
-      const regValues = regLabels.map(k => (regionMap[k] / 100000).toFixed(2)); // in Lakhs
+      const regValues = regLabels.map(k => (regionMap[k] / 100000).toFixed(2));
 
       if (chartRegionInstance) chartRegionInstance.destroy();
       const ctxReg = document.getElementById('chartRegion').getContext('2d');
@@ -594,9 +599,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
+          plugins: { legend: { display: false } },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#94A3B8' } },
             y: { grid: { color: '#1E293B' }, ticks: { color: '#94A3B8' } }
@@ -607,11 +610,12 @@
       // 2. Category Profit
       const catMap = {};
       currentFiltered.forEach(r => {
-        catMap[r.Category] = (catMap[r.Category] || 0) + (r.Profit || 0);
+        const cat = r.Category || 'Other';
+        catMap[cat] = (catMap[cat] || 0) + (parseFloat(r.Profit) || 0);
       });
       const catLabels = Object.keys(catMap);
       const catValues = catLabels.map(k => (catMap[k] / 100000).toFixed(2));
-      const catColors = catValues.map(v => v >= 0 ? '#10B981' : '#F43F5E');
+      const catColors = catValues.map(v => parseFloat(v) >= 0 ? '#10B981' : '#F43F5E');
 
       if (chartCategoryInstance) chartCategoryInstance.destroy();
       const ctxCat = document.getElementById('chartCategory').getContext('2d');
@@ -629,9 +633,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
+          plugins: { legend: { display: false } },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#94A3B8' } },
             y: { grid: { color: '#1E293B' }, ticks: { color: '#94A3B8' } }
@@ -642,7 +644,8 @@
       // 3. Customer Segment Share
       const segMap = {};
       currentFiltered.forEach(r => {
-        segMap[r.Customer_Segment] = (segMap[r.Customer_Segment] || 0) + (r.Sales || 0);
+        const seg = r.Customer_Segment || 'Consumer';
+        segMap[seg] = (segMap[seg] || 0) + (parseFloat(r.Sales) || 0);
       });
       const segLabels = Object.keys(segMap);
       const segValues = segLabels.map(k => segMap[k]);
@@ -681,7 +684,7 @@
         const d = new Date(r.Order_Date);
         if (!isNaN(d)) {
           const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          monthMap[mKey] = (monthMap[mKey] || 0) + (r.Sales || 0);
+          monthMap[mKey] = (monthMap[mKey] || 0) + (parseFloat(r.Sales) || 0);
         }
       });
       const sortedMonths = Object.keys(monthMap).sort();
@@ -711,9 +714,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
+          plugins: { legend: { display: false } },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#94A3B8' } },
             y: { grid: { color: '#1E293B' }, ticks: { color: '#94A3B8' } }
@@ -722,7 +723,6 @@
       });
     }
 
-    // Render Table Page
     function renderTable() {
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML = '';
@@ -740,7 +740,8 @@
         pageData.forEach(row => {
           const tr = document.createElement('tr');
           tr.className = "hover:bg-slate-800/40 transition-colors";
-          const profitColor = row.Profit >= 0 ? 'text-emerald-400' : 'text-rose-400';
+          const profitVal = parseFloat(row.Profit) || 0;
+          const profitColor = profitVal >= 0 ? 'text-emerald-400' : 'text-rose-400';
           
           tr.innerHTML = `
             <td class="p-3 font-mono font-medium text-sky-400">${row.Order_ID || ''}</td>
@@ -753,9 +754,9 @@
             <td class="p-3 max-w-[180px] truncate" title="${row.Product_Name || ''}">${row.Product_Name || ''}</td>
             <td class="p-3 text-right font-mono text-slate-300">₹${Number(row.Unit_Price || 0).toLocaleString('en-IN')}</td>
             <td class="p-3 text-center text-slate-300">${row.Quantity || 0}</td>
-            <td class="p-3 text-center font-mono text-amber-400">${Math.round((row.Discount || 0) * 100)}%</td>
-            <td class="p-3 text-right font-mono font-medium text-slate-100">₹${Number(row.Sales || 0).toLocaleString('en-IN')}</td>
-            <td class="p-3 text-right font-mono font-semibold ${profitColor}">₹${Number(row.Profit || 0).toLocaleString('en-IN')}</td>
+            <td class="p-3 text-center font-mono text-amber-400">${Math.round((parseFloat(row.Discount) || 0) * 100)}%</td>
+            <td class="p-3 text-right font-mono font-medium text-slate-100">₹${Number(row.Sales || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+            <td class="p-3 text-right font-mono font-semibold ${profitColor}">₹${Number(profitVal).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -766,79 +767,141 @@
       document.getElementById('btnNextPage').disabled = currentPage >= totalPages;
     }
 
-    // CSV Parse helper (handles quotes and commas)
+    // Smart CSV Parser with automatic column header detection
+    // CSV parser that supports quoted commas, escaped quotes, and the
+    // column names used by the uploaded retail test dataset.
     function parseCSV(text) {
-      const lines = text.trim().split(/\r\n|\n/);
-      if (lines.length < 2) return [];
+      const rows = [];
+      let row = [], value = '', inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '"') {
+          if (inQuotes && text[i + 1] === '"') { value += '"'; i++; }
+          else inQuotes = !inQuotes;
+        } else if (ch === ',' && !inQuotes) {
+          row.push(value.trim()); value = '';
+        } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+          if (value.length || row.length) { row.push(value.trim()); rows.push(row); }
+          row = []; value = '';
+          if (ch === '\r' && text[i + 1] === '\n') i++;
+        } else {
+          value += ch;
+        }
+      }
+      if (value.length || row.length) { row.push(value.trim()); rows.push(row); }
+      if (rows.length < 2) return [];
 
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      const normalize = h => String(h || '').replace(/^\uFEFF/, '').trim()
+        .toLowerCase().replace(/[%₹]/g, '').replace(/[\s-]+/g, '_');
+      const headers = rows[0].map(normalize);
+      const findIndex = (...aliases) => {
+        for (const alias of aliases) {
+          const idx = headers.indexOf(normalize(alias));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+      const idIdx = findIndex('order_id', 'transaction_id', 'id', 'txn_id');
+      const dateIdx = findIndex('order_date', 'timestamp', 'date', 'datetime');
+      const custIdx = findIndex('customer_name', 'name', 'customer');
+      const custIdIdx = findIndex('customer_id', 'cust_id');
+      const segIdx = findIndex('customer_segment', 'segment', 'payment_method');
+      const regIdx = findIndex('region', 'zone', 'store_region', 'store_id', 'location');
+      const cityIdx = findIndex('city', 'store_city', 'state', 'town');
+      const catIdx = findIndex('category', 'dept', 'department', 'type');
+      const prodIdx = findIndex('product_name', 'product', 'item', 'item_name');
+      const priceIdx = findIndex('unit_price', 'unit_price_inr', 'price');
+      const qtyIdx = findIndex('quantity', 'qty', 'units');
+      const discPctIdx = findIndex('discount_percent', 'discount_pct', 'discount_percentage');
+      const discIdx = findIndex('discount', 'discount_inr', 'disc');
+      const salesIdx = findIndex('sales', 'total_amount', 'total_amount_inr', 'amount', 'total', 'revenue');
+      const profitIdx = findIndex('profit', 'net_profit', 'margin');
+
+      const getVal = (r, idx, fallback = '') =>
+        idx >= 0 && r[idx] !== undefined ? String(r[idx]).trim() : fallback;
+      const getNum = (r, idx, fallback = 0) => {
+        if (idx < 0 || r[idx] === undefined || r[idx] === '') return fallback;
+        const n = Number(String(r[idx]).replace(/[₹,\s]/g, ''));
+        return Number.isFinite(n) ? n : fallback;
+      };
+
       const parsedRows = [];
+      rows.slice(1).forEach((r, i) => {
+        if (!r.some(v => String(v).trim() !== '')) return;
+        const qty = getNum(r, qtyIdx, 1);
+        const price = getNum(r, priceIdx, 0);
+        let sales = getNum(r, salesIdx, 0);
+        if (!sales && price > 0) sales = price * qty;
 
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        // Match comma-separated values respecting quotes
-        const pattern = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g;
-        const rowVals = [];
-        let match;
-        while ((match = pattern.exec(line)) && rowVals.length < headers.length) {
-          let val = match[1];
-          if (val && val.startsWith('"') && val.endsWith('"')) {
-            val = val.slice(1, -1).replace(/""/g, '"');
-          }
-          rowVals.push(val ? val.trim() : '');
+        // Prefer a percentage column; convert 10 to 0.10 for calculations.
+        const hasPercentDiscount = discPctIdx >= 0;
+        let discount = hasPercentDiscount
+          ? getNum(r, discPctIdx, 0) / 100
+          : getNum(r, discIdx, 0);
+        if (!hasPercentDiscount && discount > 1) {
+          // Currency discount amount -> percentage of gross value.
+          const gross = price * qty;
+          discount = gross > 0 ? discount / gross : 0;
         }
 
-        const obj = {};
-        headers.forEach((h, idx) => {
-          let val = rowVals[idx] || '';
-          if (['Sales', 'Profit', 'Quantity', 'Unit_Price', 'Discount'].includes(h)) {
-            val = parseFloat(val.replace(/[₹,]/g, '')) || 0;
-          }
-          obj[h] = val;
+        const city = getVal(r, cityIdx, '');
+        // If no region column exists, use the available store city so the
+        // geographic chart does not collapse into a single "General" bar.
+        const region = getVal(r, regIdx, city || 'Other');
+        const customerName = getVal(r, custIdx,
+          custIdIdx >= 0 ? `Customer ${getVal(r, custIdIdx)}` : `Customer ${i + 1}`);
+        let profit = getNum(r, profitIdx, null);
+        if (profit === null) {
+          profit = Math.round((sales * (0.22 - discount * 1.1)) * 100) / 100;
+        }
+
+        parsedRows.push({
+          Order_ID: getVal(r, idIdx, `ORD-${i + 1}`),
+          Order_Date: getVal(r, dateIdx, '2026-01-01').split(' ')[0],
+          Customer_ID: getVal(r, custIdIdx, `CUST-${i + 1}`),
+          Customer_Name: customerName,
+          Customer_Segment: getVal(r, segIdx, 'Consumer'),
+          Region: region,
+          City: city || region,
+          Category: getVal(r, catIdx, 'General Retail'),
+          Product_Name: getVal(r, prodIdx, 'Retail Item'),
+          Unit_Price: price > 0 ? price : (qty > 0 ? sales / qty : sales),
+          Quantity: qty,
+          Discount: discount,
+          Sales: sales,
+          Profit: profit
         });
-        parsedRows.push(obj);
-      }
+      });
       return parsedRows;
     }
 
-    // Export current filtered rows to CSV
     function exportFilteredCSV() {
       if (currentFiltered.length === 0) return;
-      const headers = Object.keys(currentFiltered[0]);
+      const headers = ['Order_ID', 'Order_Date', 'Customer_Name', 'Customer_Segment', 'Region', 'City', 'Category', 'Product_Name', 'Unit_Price', 'Quantity', 'Discount', 'Sales', 'Profit'];
       const csvRows = [headers.join(',')];
 
       currentFiltered.forEach(row => {
-        const values = headers.map(header => {
-          const val = row[header] ?? '';
-          const escaped = ('' + val).replace(/"/g, '\\"');
-          return `"${escaped}"`;
-        });
+        const values = headers.map(h => `"${row[h] !== undefined ? row[h] : ''}"`);
         csvRows.push(values.join(','));
       });
 
       const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.setAttribute('hidden', '');
-      a.setAttribute('href', url);
-      a.setAttribute('download', 'Filtered_Retail_Sales_Export.csv');
+      a.href = url;
+      a.download = 'Filtered_Retail_Sales_Export.csv';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
     }
 
-    // Event Listeners
     document.addEventListener('DOMContentLoaded', () => {
-      initData();
+      loadInitialData();
 
-      // Filter changes
       document.getElementById('filterRegion').addEventListener('change', applyFilters);
       document.getElementById('filterCategory').addEventListener('change', applyFilters);
       document.getElementById('searchInput').addEventListener('input', applyFilters);
 
-      // Reset
       document.getElementById('btnResetFilters').addEventListener('click', () => {
         document.getElementById('filterRegion').value = 'ALL';
         document.getElementById('filterCategory').value = 'ALL';
@@ -846,12 +909,8 @@
         applyFilters();
       });
 
-      // Reload dataset
-      document.getElementById('btnReloadSample').addEventListener('click', () => {
-        initData();
-      });
+      document.getElementById('btnReloadSample').addEventListener('click', loadInitialData);
 
-      // Pagination
       document.getElementById('btnPrevPage').addEventListener('click', () => {
         if (currentPage > 1) {
           currentPage--;
@@ -866,10 +925,8 @@
         }
       });
 
-      // Export
       document.getElementById('btnExportCSV').addEventListener('click', exportFilteredCSV);
 
-      // Upload CSV
       document.getElementById('csvFileInput').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -882,15 +939,17 @@
               masterData = parsed;
               populateDropdowns();
               applyFilters();
+            } else {
+              alert("No usable rows found. Check that the CSV has a header row and columns such as Date, Category, Quantity, Unit_Price_INR and Total_Amount_INR.");
             }
           } catch (err) {
             console.error("CSV Parse Error", err);
+            alert("Error parsing CSV: " + err.message);
           }
         };
         reader.readAsText(file);
       });
 
-      // Tab navigation
       const tabBtns = document.querySelectorAll('.tab-btn');
       tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -905,7 +964,6 @@
           document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
           document.getElementById(targetId).classList.remove('hidden');
 
-          // Trigger redraw for chart canvas rendering
           if (targetId === 'tab-visuals') {
             updateCharts();
           }
