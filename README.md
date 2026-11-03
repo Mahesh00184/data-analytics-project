@@ -1,2 +1,2 @@
-# data-analytics-project.github.io
+# data-analytics-project
 Using "AI"
